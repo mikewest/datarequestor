@@ -1,7 +1,7 @@
 /**
- *    DataRequestor Class v: 1.5b - Feb 13, 2006
+ *    DataRequestor Class v: 1.6 - Feb 11, 2007
  *
- *	      Copyright 2005 - Mike West - http://mikewest.org/
+ *	      Copyright 2007 - Mike West - http://mikewest.org/
  *
  *        This software is licensed under the CC-GNU LGPL <http://creativecommons.org/licenses/LGPL/2.1/>
  *
@@ -118,7 +118,9 @@
  *                If the request fails, the XMLRequestor object defaults to simply throwing
  *                an error.  If that's not a great solution for you, then assign a function
  *                to onfail that accepts a single variable: the XMLHttpRequest status
- *                code.  Do with it what you will:
+ *                code.  If the status returned is "-1", then DataRequester encountered
+ *                an error it didn't know what to do with.  In this case, it will pass a
+ *                second argument: the text of the thrown error.  Do with it what you will:
  *
  *                    req.onfail = function (status) {
  *                        alert("The handler died with a status of " + status);
@@ -201,6 +203,20 @@ function DataRequestor() {
      *   @return    true
      */
     this.getURL = function(url) {
+        
+        if (self.onLoad) {
+            self.onload     = self.onLoad;
+        }
+        if (self.onReplace) {
+            self.onreplace  = self.onReplace;
+        }
+        if (self.onProgress) {
+            self.onprogress = self.onProgress;
+        }
+        if (self.onFail) {
+            self.onfail     = self.onFail;
+        }
+        
         self.userModifiedData = "";  // clear user modified data;
         // DID THE USER WANT A DOM OBJECT, OR JUST THE TEXT OF THE REQUESTED DOCUMENT?
 			switch (arguments[1]) {
@@ -225,29 +241,40 @@ function DataRequestor() {
         // GENERATE THE POST AND GET STRINGS
             var requestType = "GET";
             var getUrlString = (url.indexOf("?") != -1)?"&":"?";
-            for (var i in self.argArray[_GET]) {
-                getUrlString += i + "=" + self.argArray[_GET][i] + "&";
+            for (i=0;i<self.argArray[_GET].length;i++) {
+                getUrlString += self.argArray[_GET][i][0] + "=" + self.argArray[_GET][i][1] + "&";
             }
             var postUrlString = "";
-            for (i in self.argArray[_POST]) {
-                postUrlString += i + "=" + self.argArray[_POST][i] + "&";
+            for (i=0;i<self.argArray[_POST].length;i++) {
+                postUrlString += self.argArray[_POST][i][0] + "=" + self.argArray[_POST][i][1] + "&";
             }
             if (postUrlString != "") {
                 requestType = "POST";  // Only POST if we have post variables
             }
 
         // MAKE THE REQUEST
-
-            self._XML_REQ.open(requestType, url + getUrlString, true);
-	    if ((typeof self._XML_REQ.setRequestHeader) != "undefined") { // Opera can't setRequestHeader()
-                if (self.returnType == _RETURN_AS_DOM && typeof self._XML_REQ.overrideMimeType == "function") {
-                    self._XML_REQ.overrideMimeType('text/xml');  // Make sure we get XML if we're trying to process as DOM
+            try {
+                self._XML_REQ.open(requestType, url + getUrlString, true);
+    	        if ((typeof self._XML_REQ.setRequestHeader) != "undefined") { // Opera can't setRequestHeader()
+                    if (self.returnType == _RETURN_AS_DOM && typeof self._XML_REQ.overrideMimeType == "function") {
+                        self._XML_REQ.overrideMimeType('text/xml');  // Make sure we get XML if we're trying to process as DOM
+                    }
+                    self._XML_REQ.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
                 }
-                self._XML_REQ.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+                self._XML_REQ.send(postUrlString);
+            } catch (e) {
+                self.error = e;
             }
-            self._XML_REQ.send(postUrlString);
-
-       return true;
+            
+        if (self.error) {
+            if (self.onfail) {
+                self.onfail(-1, self.error);
+            } else {
+                throw new Error("DataRequester encountered an unexpected exception: '"+self.error+"'");
+            }
+        }
+            
+        return true;
     }
     
     
@@ -279,27 +306,27 @@ function DataRequestor() {
      *    somehow, so we either call the callbackFailure method, or throw an error.
      */
     this.callback = function() {
-        if (self.onLoad) {
-            self.onload     = self.onLoad;
+        var _state  = 0;
+        var _status = 0;
+        var _error  = "";
+        try {
+            _state  = self._XML_REQ.readyState;
+        } catch (e) {
+            _error  = e;
+            _state  = 0;
         }
-        if (self.onReplace) {
-            self.onreplace  = self.onReplace;
+        
+        try {
+            _status = self._XML_REQ.status;
+        } catch (e) {
+            _error  = e;
+            _status = -1;
         }
-        if (self.onProgress) {
-            self.onprogress = self.onProgress;
-        }
-        if (self.onFail) {
-            self.onfail     = self.onFail;
-        }
-
+        
         if (
-            (self._XML_REQ.readyState == 4 && self._XML_REQ.status == 200)
+            (_state == 4 && _status == 200)
             ||
-            (self._XML_REQ.readyState == 4 && self._XML_REQ.status == 0) // Uncomment for local (non-hosted files)
-            
-            
-/*            || 
-            (self._XML_REQ.readyState == 4 && (typeof self._XML_REQ.status) == 'undefined') /* Safari 2.0/1.3 has a strange bug related to not returning the correct status */
+            (_state == 4 && _status == 0) // Locally hosted files (e.g. `file:///*`) don't have a status
            ) {
             var obj = self.getObjToReplace();
             if (self.onload) {
@@ -340,7 +367,7 @@ function DataRequestor() {
                     self.onreplace(obj, self.objOldContent, self.objNewContent);
                 }
             }
-        } else if (self._XML_REQ.readyState == 3) {
+        } else if (_state == 3) {
             if (self.onprogress && !document.all) { // This would throw an error in IE.
                 var contentLength = 0;
                 // Depends on server.  If content-length isn't set, catch the error
@@ -352,11 +379,11 @@ function DataRequestor() {
                 self.onprogress(self._XML_REQ.responseText.length, contentLength);
             }
 
-        } else if (self._XML_REQ.readyState == 4) {
+        } else if (_state == 4) {
             if (self.onfail) {
-                self.onfail(self._XML_REQ.status);
+                self.onfail(_status, self.error);
             } else {
-                throw new Error("Data Request failed with an HTTP status of " + self._XML_REQ.status + "\nresponseText = " + self._XML_REQ.responseText);
+                throw new Error("DataRequester encountered an unexpected exception: '"+self.error+"'.\nThe status code is: "+_status);
             }
         }
     }
@@ -427,7 +454,7 @@ function DataRequestor() {
      *  @param  value   the argument's value
      */
     this.addArg = function(type, name, value) {
-        self.argArray[type][name] = escape(value);
+        self.argArray[type].push([name, escape(value)]);
     }
 
     /**
@@ -451,8 +478,8 @@ function DataRequestor() {
         var submitMethod = (theForm.getAttribute('method').toLowerCase() == 'post')?_POST:_GET;
         
         // Get all form elements and use `addArg` to add them to the GET/POST string
-        for (var i=0; i < theForm.childNodes.length; i++) {
-            theNode = theForm.childNodes[i];
+        for (var i=0; i < theForm.elements.length; i++) {
+            theNode = theForm.elements[i];
             switch(theNode.nodeName.toLowerCase()) {
                 case "input":
                 case "select":
