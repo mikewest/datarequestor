@@ -1,6 +1,5 @@
-//#$Id: DataRequestor.js,v 1.4 2005/03/09 17:45:21 meekut Exp $
 /**
- *    DataRequestor Class v: 1.3 - Mar. 9, 2005
+ *    DataRequestor Class v: 1.5b - Feb 13, 2006
  *
  *	      Copyright 2005 - Mike West - http://mikewest.org/
  *
@@ -18,8 +17,11 @@
  *                var req = new DataRequestor();
  *
  *            Once you have the object instantiated, your usage will depend
- *            on your needs.  If you want to grab data, and shove it wholesale
- *            into an element on the page's innerHTML, then tell the XMLRequestor
+ *            on your needs.  
+ *
+ *			  RETURNING TEXT
+ *            If you want to grab data, and shove it wholesale into an element 
+ *            on the page (which I do 90% of the time), then tell the DataRequestor
  *            object where to stick the info by passing setObjToReplace an
  *            element ID or object reference, and call getURL to complete the
  *            process:
@@ -28,10 +30,9 @@
  *                req.getURL(url);
  *
  *
- *            DOM OBJECTS
- *
- *             By default, the contents of the requested file will be passed in as
- *            plaintext, which is simpler to work with than a real DOM object.
+ *            RETURNING A DOM OBJECT
+ *            By default, the contents of the requested file will be passed in as
+ *            plaintext, which can be simpler to work with than a real DOM object.
  *            If you'd like a DOM object to work with, then call getURL with
  *            _RETURN_AS_DOM as the second argument:
  *
@@ -41,6 +42,16 @@
  *            of "text/xml" when you'd like your data processed as a DOM object.  IE gets
  *            confused otherwise.
  *
+ *            RETURNING A JSON OBJECT
+ *            If you've no idea what JSON is, visit http://www.json.org/
+ *
+ *            To get a JavaScript object back from DataRequestor, call getURL with
+ *            with _RETURN_AS_JSON as the second parameter.
+ *
+ *                req.getURL(url, _RETURN_AS_JSON);
+ *
+ *            This, of course, assumes that you've generated a JSON string correctly
+ *            at the URL you've requested.
  *            ----
  *            ARGUMENTS
  *
@@ -53,7 +64,18 @@
  *
  *            addArg will automatically call escape() on the name and value to
  *            ensure they are URL escaped correctly.
+ *            
+ *            ARGUMENTS FROM A FORM
  *
+ *            To pass in all the arguments from a form, use the `addArgsFromForm`
+ *            method.  This will automatically call `addArg` on each of the form
+ *            elements using the `method` attribute of the form to set the request 
+ *            method for the arguments.  Each form element *must* have an ID for this
+ *            method to function correctly.
+ *
+ *                req.addArgsFromForm(formID);
+ *                e.g.
+ *                req.addArgsFromForm("myFormName");
  *            ----
  *            EVENT HANDLERS
  *
@@ -61,11 +83,34 @@
  *
  *                To take action when the data loads successfully, set onload to a function that
  *                takes two arguments: data, and obj.  This will be called upon successful retrieval
- *                of the requested information, and will be passed the data retrieves (as text or DOM,
- *                depending on your arguments to getURL), and the object that was replaced.
+ *                of the requested information, and will be passed the data retrieves and the object
+ *                that will be replaced (or null if no replacement has been requested).
  *
  *                    req.onload = function (data, obj) {
- *                        alert("Callbackhandler called with the following data: \n" + data);
+ *                        alert("Callback handler called with the following data: \n" + data);
+ *                    }
+ *
+ *                The first parameter (`data`) will be one of three things:
+ *                    - text:  If getURL was called without a second argument, or _RETURN_AS_TEXT,
+ *                      then `data` contains the raw text returned by the page that you loaded.
+ *                    
+ *                    - DOM object: If getURL was called with _RETURN_AS_DOM as the second argument, then
+ *						`data` contains a DOM object, with blank whitespace nodes removed in order to 
+ *                      provide a consistant experience between browsers that support the DOM standard
+ *                      and IE.
+ *
+ *                    - JavaScript object: If getURL was called with _RETURN_AS_JSON as the second argument,
+ *                      then `data` contains a JavaScript object generated from the JSON text that was returned
+ *                      by the page you loaded.
+ *
+ *                ON REPLACE
+ *                
+ *                If you requested a replacement by setting an `objToReplace`, then this handler will
+ *                be called directly after the replacement occurs, and will be passed the same variables
+ *                as the `onload` method.
+ *
+ *                    req.onreplace = function (data, obj) {
+ *                        alert("Callback handler called with the following data: \n" + data);
  *                    }
  *
  *                ERROR HANDLING
@@ -93,13 +138,12 @@
  *                    }
  *
  */
+var _RETURN_AS_JSON = 2;
 var _RETURN_AS_TEXT = 1;
 var _RETURN_AS_DOM  = 0;
+
 var _POST           = 0;
 var _GET            = 1;
-
-var _REPLACE_AS_DOM  = 0;
-var _REPLACE_AS_HTML = 1;
 
 var _CACHE           = 0;
 var _NO_CACHE        = 1;
@@ -149,7 +193,6 @@ function DataRequestor() {
         return self._XML_REQ;
     }
 
-
     /**
      *   Starts the request for a url.  XMLHttpRequest will call
      *   the default callback method when the request is complete
@@ -158,15 +201,21 @@ function DataRequestor() {
      *   @return    true
      */
     this.getURL = function(url) {
+        self.userModifiedData = "";  // clear user modified data;
         // DID THE USER WANT A DOM OBJECT, OR JUST THE TEXT OF THE REQUESTED DOCUMENT?
-            if (arguments[1] == _RETURN_AS_DOM) {
-                self.returnType = _RETURN_AS_DOM;
-            } else {
-                self.returnType = _RETURN_AS_TEXT;  // DEFAULT
-            }
+			switch (arguments[1]) {
+				case _RETURN_AS_DOM:
+				case _RETURN_AS_TEXT:
+				case _RETURN_AS_JSON:
+					self.returnType = arguments[1];
+					break;
+				
+				default:
+					self.returnType = _RETURN_AS_TEXT;
+			}
 
 		// CLEAR OUT ANY CURRENTLY ACTIVE REQUESTS
-            if (typeof self._XML_REQ.abort == "function" && self._XML_REQ.readyState!=0) { // Opera can't abort().
+            if ((typeof self._XML_REQ.abort) != "undefined" && self._XML_REQ.readyState!=0) { // Opera can't abort().
                 self._XML_REQ.abort();
             }
 
@@ -175,7 +224,7 @@ function DataRequestor() {
 
         // GENERATE THE POST AND GET STRINGS
             var requestType = "GET";
-            var getUrlString = "?";
+            var getUrlString = (url.indexOf("?") != -1)?"&":"?";
             for (var i in self.argArray[_GET]) {
                 getUrlString += i + "=" + self.argArray[_GET][i] + "&";
             }
@@ -190,7 +239,7 @@ function DataRequestor() {
         // MAKE THE REQUEST
 
             self._XML_REQ.open(requestType, url + getUrlString, true);
-            if (typeof self._XML_REQ.setRequestHeader == "function") { // Opera can't setRequestHeader()
+	    if ((typeof self._XML_REQ.setRequestHeader) != "undefined") { // Opera can't setRequestHeader()
                 if (self.returnType == _RETURN_AS_DOM && typeof self._XML_REQ.overrideMimeType == "function") {
                     self._XML_REQ.overrideMimeType('text/xml');  // Make sure we get XML if we're trying to process as DOM
                 }
@@ -200,6 +249,8 @@ function DataRequestor() {
 
        return true;
     }
+    
+    
 
     /**
      *  The default callback method: this is called when the XMLHttpRequest object
@@ -221,15 +272,18 @@ function DataRequestor() {
      *        IE.  If not, we pass them back plaintext.
      *
      *  - Else if the readystate is 3 (loading), and the user has set an onProgress handler, and
-     *    we're not in IE (which has a browen readyState 3: http://jpspan.sourceforge.net/wiki/doku.php?id=javascript:xmlhttprequest:behaviour)
+     *    we're not in IE (which has a broken readyState 3: http://jpspan.sourceforge.net/wiki/doku.php?id=javascript:xmlhttprequest:behaviour)
      *    then call it with two arguments: the current number of bytes we've downloaded, and the total size (or -1 if we can't tell).
      *
      *  - Else if the readystate is 4, and the status isn't 200 (not OK), then we failed
-     *    somehow, so we either call the callbackFailure method, or throw _XML_REQUEST_FAILED.
+     *    somehow, so we either call the callbackFailure method, or throw an error.
      */
     this.callback = function() {
         if (self.onLoad) {
             self.onload     = self.onLoad;
+        }
+        if (self.onReplace) {
+            self.onreplace  = self.onReplace;
         }
         if (self.onProgress) {
             self.onprogress = self.onProgress;
@@ -238,27 +292,52 @@ function DataRequestor() {
             self.onfail     = self.onFail;
         }
 
-        if (self._XML_REQ.readyState == 4 && self._XML_REQ.status == 200) {
+        if (
+            (self._XML_REQ.readyState == 4 && self._XML_REQ.status == 200)
+            ||
+            (self._XML_REQ.readyState == 4 && self._XML_REQ.status == 0) // Uncomment for local (non-hosted files)
+            
+            
+/*            || 
+            (self._XML_REQ.readyState == 4 && (typeof self._XML_REQ.status) == 'undefined') /* Safari 2.0/1.3 has a strange bug related to not returning the correct status */
+           ) {
             var obj = self.getObjToReplace();
-            if (obj) {
-                if (self.replaceAs == _REPLACE_AS_HTML) {
-                    // IE dies if you assign to a textarea's innerHTML
-                    if (obj.nodeName == "TEXTAREA" || obj.nodeName == "INPUT") {
-                        obj.value = self._XML_REQ.responseText;
-                    } else {
-                        obj.innerHTML = self._XML_REQ.responseText;
-                    }
-                } else if (self.replaceAs == _REPLACE_AS_DOM) {
-                    eval(self._XML_REQ.responseText);
-                    obj.parentNode.replaceChild(_DOM_OBJ, obj);
-                    self.setObjToReplace(_DOM_OBJ);
-                }
-            }
             if (self.onload) {
-                if (self.returnType == _RETURN_AS_DOM) {
-                    self.onload(self.normalizeWhitespace(self._XML_REQ.responseXML), obj);
-                } else {
-                    self.onload(self._XML_REQ.responseText, obj);
+            	switch (self.returnType) {
+            		case _RETURN_AS_TEXT:
+            			// We want text back, so send responseText
+	                    self.onload(self._XML_REQ.responseText, obj);
+	                    break;
+	                    
+	                case _RETURN_AS_DOM:
+	                	// We want a DOM object back, so send a normalized responseXML
+	                    self.onload(self.normalizeWhitespace(self._XML_REQ.responseXML), obj);
+	                    break;
+	                    
+	                case _RETURN_AS_JSON:
+	                	// We want a javascript object back, so give it:
+	                	self.onload(eval('(' + self._XML_REQ.responseText + ')'), obj);
+	                	break;
+            	}
+            }
+            if (obj) {
+                // We're going to replace obj's content with the text returned from the XML_REQ.
+                // The old content will be stored in self.objOldContent, the new content in 
+                // self.objNewContent
+                
+				// We treat TEXTAREA and INPUT nodes differently (because IE crashes if you 
+				// try to adjust a TEXTAREA's innerHTML).
+				if (obj.nodeName == "TEXTAREA" || obj.nodeName == "INPUT") {
+				    self.objOldContent = obj.value;
+					obj.value          = (self.userModifiedData)?self.userModifiedData:self._XML_REQ.responseText;
+					self.objNewContent = obj.value;					
+				} else {
+				    self.objOldContent = obj.innerHTML;
+					obj.innerHTML      = (self.userModifiedData)?self.userModifiedData:self._XML_REQ.responseText;
+					self.objNewContent = obj.innerHTML;					
+				}
+                if (self.onreplace) {
+                    self.onreplace(obj, self.objOldContent, self.objNewContent);
                 }
             }
         } else if (self._XML_REQ.readyState == 3) {
@@ -277,7 +356,7 @@ function DataRequestor() {
             if (self.onfail) {
                 self.onfail(self._XML_REQ.status);
             } else {
-                throw new Error("Data Request failed with an HTTP status of " + self._XML_REQ.status);
+                throw new Error("Data Request failed with an HTTP status of " + self._XML_REQ.status + "\nresponseText = " + self._XML_REQ.responseText);
             }
         }
     }
@@ -289,7 +368,8 @@ function DataRequestor() {
      *  @param  domObj    the root of the DOM object to normalize
      */
     this.normalizeWhitespace = function (domObj) {
-        // with thanks to the kind folks in this thread: http://www.codingforums.com/archive/index.php/t-7028
+        // with thanks to the kind folks in this thread: 
+        //    http://www.codingforums.com/archive/index.php/t-7028
         if (document.createTreeWalker) {
             var filter = {
                 acceptNode: function(node) {
@@ -309,20 +389,18 @@ function DataRequestor() {
             return domObj;
         }
     }
+    
+    this.commitData = function (newData) {
+        self.userModifiedData = newData;
+    }
 
     /**
      *  Sets the object to replace.  If passed a string, it sets objToReplaceID, which
      *  is evaluated at runtime.  Else, it sets objToReplace to the object reference
      *  it was passed.
      *  @param  obj             a reference to the object to replace, or the object's ID
-     *  @param  replaceType     optional arg: replace as DOM obj, or replace as text
      */
     this.setObjToReplace = function(obj) {
-        if (arguments[1] == _REPLACE_AS_DOM) {
-            self.replaceAs = _REPLACE_AS_DOM;
-        } else {
-            self.replaceAs = _REPLACE_AS_HTML;
-        }
         if (typeof obj == "object") {
             self.objToReplace = obj;
         } else if (typeof obj == "string") {
@@ -335,7 +413,7 @@ function DataRequestor() {
      *  Returns a reference to the object set by objToReplace
      */
     this.getObjToReplace = function() {
-        if (self.objToReplaceID) {
+        if (self.objToReplaceID != "") {
             self.objToReplace = document.getElementById(self.objToReplaceID);
             self.objToReplaceID = "";
         }
@@ -361,6 +439,31 @@ function DataRequestor() {
     }
 
     /**
+     *  Adds all the variables from an HTML form to the GET or 
+     *  POST strings, based on the `method` attribute` of the 
+     *  form
+     *  @param  formID  the ID of the form to be added
+     */
+    this.addArgsFromForm = function(formID) {
+        var theForm = document.getElementById(formID);
+        
+        // Get form method, default to GET
+        var submitMethod = (theForm.getAttribute('method').toLowerCase() == 'post')?_POST:_GET;
+        
+        // Get all form elements and use `addArg` to add them to the GET/POST string
+        for (var i=0; i < theForm.childNodes.length; i++) {
+            theNode = theForm.childNodes[i];
+            switch(theNode.nodeName.toLowerCase()) {
+                case "input":
+                case "select":
+                case "textarea":
+                    this.addArg(submitMethod, theNode.id, theNode.value);
+                    break;
+            }
+        }
+    }
+
+    /**
      *  Resets everything to defaults
      */
     this.clear = function() {
@@ -369,7 +472,6 @@ function DataRequestor() {
 
         self.objToReplace    = null;
         self.objToReplaceID  = "";
-        self.replaceAs       = _REPLACE_AS_HTML;
 
         self.onload          = null;
         self.onfail          = null;
