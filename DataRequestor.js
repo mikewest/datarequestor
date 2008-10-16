@@ -1,9 +1,10 @@
 /**
- *    DataRequestor Class v: 1.6 - Feb 11, 2007
+ *    DataRequestor Class v: 1.7 - Oct 16th, 2008
  *
- *	      Copyright 2007 - Mike West - http://mikewest.org/
+ *	      Copyright 2008 - Mike West - http://mikewest.org/
  *
- *        This software is licensed under the CC-GNU LGPL <http://creativecommons.org/licenses/LGPL/2.1/>
+ *        This software is licensed under the MIT license, details of which
+ *        can be found at http://github.com/mikewest/datarequestor/tree/master/LICENSE
  *
  *        This class wraps the XMLHttpRequest object with a friendly API
  *        that makes complicated data requests trivial to impliment in

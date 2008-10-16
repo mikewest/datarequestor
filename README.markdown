@@ -1,3 +1,5 @@
+**This is an abandoned project that I haven't really touched since SXSW 2005!  Please fork it!**
+
 DataRequestor
 =============
 
@@ -20,9 +22,11 @@ What if we wanted to do something else when the data’s loaded? Instead of repl
         // Insert crazy JavaScript stuff here!
     }
 
-DataRequestor is a solid, stable, and event-driven JavaScript class that you can simply drop into a page and start running with. It makes `XMLHTTPRequest`'s functionality available in a way that doesn’t make my brain hurt, and hopefully it will do the same for you.  [Download DataRequestor.js][datarequestor] and browse through the code.  It's well commented; use cases and instructions abound.
+DataRequestor is a solid, stable, and event-driven JavaScript class that you can simply drop into a page and start running with. It makes `XMLHTTPRequest`'s functionality available in a way that doesn’t make my brain hurt, and hopefully it will do the same for you.  [Download DataRequestor.js][download] and browse through the code.  It's well commented; use cases and instructions abound.
 
 How can I get it?
 -----------------
 
 You may download the [current stable version (1.6) of DataRequestor.js **right here**][download].  How's that for convenience?
+
+[download]: http://github.com/mikewest/datarequestor/tree/master/DataRequestor.js
