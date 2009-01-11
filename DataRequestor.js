@@ -141,6 +141,8 @@
  *                    }
  *
  */
+/*global DataRequestor, ActiveXObject, NodeFilter, escape */
+ 
 var _RETURN_AS_JSON = 2;
 var _RETURN_AS_TEXT = 1;
 var _RETURN_AS_DOM  = 0;
@@ -169,23 +171,23 @@ function DataRequestor() {
 
         try {
             xmlHTTP = new XMLHttpRequest();
-        } catch (e) {
+        } catch ( e1 ) {
             try {
-                xmlHTTP = new ActiveXObject("Msxml2.XMLHTTP")
-            } catch(e) {
+                xmlHTTP = new ActiveXObject("Msxml2.XMLHTTP");
+            } catch( e2 ) {
                 var success = false;
-                var MSXML_XMLHTTP_PROGIDS = new Array(
+                var MSXML_XMLHTTP_PROGIDS = [
                     'Microsoft.XMLHTTP',
                     'MSXML2.XMLHTTP',
                     'MSXML2.XMLHTTP.5.0',
                     'MSXML2.XMLHTTP.4.0',
                     'MSXML2.XMLHTTP.3.0'
-                );
+                ];
                 for (var i=0;i < MSXML_XMLHTTP_PROGIDS.length && !success; i++) {
                     try {
                         xmlHTTP = new ActiveXObject(MSXML_XMLHTTP_PROGIDS[i]);
                         success = true;
-                    } catch (e) {
+                    } catch ( e3 ) {
                         xmlHTTP = null;
                     }
                 }
@@ -194,7 +196,7 @@ function DataRequestor() {
         }
         self._XML_REQ = xmlHTTP;
         return self._XML_REQ;
-    }
+    };
 
     /**
      *   Starts the request for a url.  XMLHttpRequest will call
@@ -232,7 +234,7 @@ function DataRequestor() {
 			}
 
 		// CLEAR OUT ANY CURRENTLY ACTIVE REQUESTS
-            if ((typeof self._XML_REQ.abort) != "undefined" && self._XML_REQ.readyState!=0) { // Opera can't abort().
+            if ((typeof self._XML_REQ.abort) !== "undefined" && self._XML_REQ.readyState !== 0) { // Opera can't abort().
                 self._XML_REQ.abort();
             }
 
@@ -241,23 +243,23 @@ function DataRequestor() {
 
         // GENERATE THE POST AND GET STRINGS
             var requestType = "GET";
-            var getUrlString = (url.indexOf("?") != -1)?"&":"?";
-            for (i=0;i<self.argArray[_GET].length;i++) {
+            var getUrlString = (url.indexOf("?") !== -1)?"&":"?";
+            for (var i=0;i<self.argArray[_GET].length;i++) {
                 getUrlString += self.argArray[_GET][i][0] + "=" + self.argArray[_GET][i][1] + "&";
             }
             var postUrlString = "";
             for (i=0;i<self.argArray[_POST].length;i++) {
                 postUrlString += self.argArray[_POST][i][0] + "=" + self.argArray[_POST][i][1] + "&";
             }
-            if (postUrlString != "") {
+            if (postUrlString !== "") {
                 requestType = "POST";  // Only POST if we have post variables
             }
 
         // MAKE THE REQUEST
             try {
                 self._XML_REQ.open(requestType, url + getUrlString, true);
-    	        if ((typeof self._XML_REQ.setRequestHeader) != "undefined") { // Opera can't setRequestHeader()
-                    if (self.returnType == _RETURN_AS_DOM && typeof self._XML_REQ.overrideMimeType == "function") {
+    	        if ((typeof self._XML_REQ.setRequestHeader) !== "undefined") { // Opera can't setRequestHeader()
+                    if (self.returnType === _RETURN_AS_DOM && typeof self._XML_REQ.overrideMimeType === "function") {
                         self._XML_REQ.overrideMimeType('text/xml');  // Make sure we get XML if we're trying to process as DOM
                     }
                     self._XML_REQ.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
@@ -276,7 +278,7 @@ function DataRequestor() {
         }
             
         return true;
-    }
+    };
     
     
 
@@ -312,22 +314,21 @@ function DataRequestor() {
         var _error  = "";
         try {
             _state  = self._XML_REQ.readyState;
-        } catch (e) {
-            _error  = e;
+        } catch ( e1 ) {
+            _error  = e1;
             _state  = 0;
         }
         
         try {
             _status = self._XML_REQ.status;
-        } catch (e) {
-            _error  = e;
+        } catch ( e2 ) {
+            _error  = e2;
             _status = -1;
         }
         
         if (
-            (_state == 4 && _status == 200)
-            ||
-            (_state == 4 && _status == 0) // Locally hosted files (e.g. `file:///*`) don't have a status
+            (_state === 4 && _status === 200)   ||
+            (_state === 4 && _status === 0) // Locally hosted files (e.g. `file:///*`) don't have a status
            ) {
             var obj = self.getObjToReplace();
             if (self.onload) {
@@ -355,7 +356,7 @@ function DataRequestor() {
                 
 				// We treat TEXTAREA and INPUT nodes differently (because IE crashes if you 
 				// try to adjust a TEXTAREA's innerHTML).
-				if (obj.nodeName == "TEXTAREA" || obj.nodeName == "INPUT") {
+				if (obj.nodeName === "TEXTAREA" || obj.nodeName === "INPUT") {
 				    self.objOldContent = obj.value;
 					obj.value          = (self.userModifiedData)?self.userModifiedData:self._XML_REQ.responseText;
 					self.objNewContent = obj.value;					
@@ -368,7 +369,7 @@ function DataRequestor() {
                     self.onreplace(obj, self.objOldContent, self.objNewContent);
                 }
             }
-        } else if (_state == 3) {
+        } else if (_state === 3) {
             if (self.onprogress && !document.all) { // This would throw an error in IE.
                 var contentLength = 0;
                 // Depends on server.  If content-length isn't set, catch the error
@@ -380,14 +381,14 @@ function DataRequestor() {
                 self.onprogress(self._XML_REQ.responseText.length, contentLength);
             }
 
-        } else if (_state == 4) {
+        } else if (_state === 4) {
             if (self.onfail) {
                 self.onfail(_status, self.error);
             } else {
                 throw new Error("DataRequester encountered an unexpected exception: '"+self.error+"'.\nThe status code is: "+_status);
             }
         }
-    }
+    };
 
 
     /**
@@ -406,7 +407,7 @@ function DataRequestor() {
                     }
                     return NodeFilter.FILTER_ACCEPT;
                 }
-            }
+            };
             var treeWalker = document.createTreeWalker(domObj, NodeFilter.SHOW_TEXT, filter, true);
             while (treeWalker.nextNode()) {
                 treeWalker.currentNode.parentNode.removeChild(treeWalker.currentNode);
@@ -416,11 +417,11 @@ function DataRequestor() {
         } else {
             return domObj;
         }
-    }
+    };
     
     this.commitData = function (newData) {
         self.userModifiedData = newData;
-    }
+    };
 
     /**
      *  Sets the object to replace.  If passed a string, it sets objToReplaceID, which
@@ -429,24 +430,24 @@ function DataRequestor() {
      *  @param  obj             a reference to the object to replace, or the object's ID
      */
     this.setObjToReplace = function(obj) {
-        if (typeof obj == "object") {
+        if (typeof obj === "object") {
             self.objToReplace = obj;
-        } else if (typeof obj == "string") {
+        } else if (typeof obj === "string") {
             self.objToReplaceID = obj;
 
         }
-    }
+    };
 
     /**
      *  Returns a reference to the object set by objToReplace
      */
     this.getObjToReplace = function() {
-        if (self.objToReplaceID != "") {
+        if (self.objToReplaceID !== "") {
             self.objToReplace = document.getElementById(self.objToReplaceID);
             self.objToReplaceID = "";
         }
         return self.objToReplace;
-    }
+    };
 
     /**
      *  Adds an argument to the GET or POST strings.
@@ -455,16 +456,20 @@ function DataRequestor() {
      *  @param  value   the argument's value
      */
     this.addArg = function(type, name, value) {
-        self.argArray[type].push([name, escape(value)]);
-    }
+        if ( encodeURIComponent ) {
+            self.argArray[type].push([name, encodeURIComponent(value)]);            
+        } else {
+            self.argArray[type].push([name, escape(value)]);
+        }
+    };
 
     /**
      *  Clears the argument lists
      */
     this.clearArgs = function() {
-        self.argArray[_POST] = new Array();
-        self.argArray[_GET]  = new Array();
-    }
+        self.argArray[_POST] = [];
+        self.argArray[_GET]  = [];
+    };
 
     /**
      *  Adds all the variables from an HTML form to the GET or 
@@ -476,11 +481,11 @@ function DataRequestor() {
         var theForm = document.getElementById(formID);
         
         // Get form method, default to GET
-        var submitMethod = (theForm.getAttribute('method').toLowerCase() == 'post')?_POST:_GET;
+        var submitMethod = (theForm.getAttribute('method').toLowerCase() === 'post')?_POST:_GET;
         
         // Get all form elements and use `addArg` to add them to the GET/POST string
         for (var i=0; i < theForm.elements.length; i++) {
-            theNode = theForm.elements[i];
+            var theNode = theForm.elements[i];
             switch(theNode.nodeName.toLowerCase()) {
                 case "input":
                 case "select":
@@ -495,14 +500,14 @@ function DataRequestor() {
                     break;
             }
         }
-    }
+    };
 
     /**
      *  Resets everything to defaults
      */
     this.clear = function() {
         self.returnType      = _RETURN_AS_TEXT;
-        self.argArray        = new Array();
+        self.argArray        = [];
 
         self.objToReplace    = null;
         self.objToReplaceID  = "";
@@ -510,9 +515,9 @@ function DataRequestor() {
         self.onload          = null;
         self.onfail          = null;
         self.onprogress      = null;
-        self.cache           = new Array();
+        self.cache           = [];
         this.clearArgs();
-    }
+    };
 
 
 
