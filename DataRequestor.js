@@ -485,7 +485,13 @@ function DataRequestor() {
                 case "input":
                 case "select":
                 case "textarea":
-                    this.addArg(submitMethod, theNode.id, theNode.value);
+                    if ( theNode.type === 'radio' || theNode.type === 'checkbox' ) {
+                        if ( theNode.checked ) {
+                            this.addArg(submitMethod, theNode.id, theNode.value);
+                        }
+                    } else {
+                        this.addArg(submitMethod, theNode.id, theNode.value);
+                    }
                     break;
             }
         }
